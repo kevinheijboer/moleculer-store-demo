@@ -1,0 +1,287 @@
+#########################################################
+# Common Environment variables ConfigMap
+#########################################################
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: common-env
+data:
+  NAMESPACE: ""
+  LOGLEVEL: info
+  SERVICEDIR: services
+  
+  
+  
+  TRANSPORTER: amqp://rabbitmq:5672
+  
+  
+  
+  
+  
+  MONGO_URI: mongodb://mongo/moleculer-store
+
+---
+#########################################################
+# Service for Moleculer API Gateway service
+#########################################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+spec:
+  selector:
+    app: api-gateway
+  ports:
+  - port: 3000
+    targetPort: 3000
+
+---
+#########################################################
+# Ingress for Moleculer API Gateway
+#########################################################
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress
+spec:
+  rules:
+  - host: moleculer-demo.127.0.0.1.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: api
+            port: 
+              number: 3000
+
+---
+#########################################################
+# API Gateway service
+#########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  selector:
+    matchLabels:
+      app: api-gateway
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+      - name: api-gateway
+        image: kevinhb/moleculer-store:latest
+        envFrom:
+        - configMapRef:
+            name: common-env
+        env:
+          - name: SERVICES
+            value: api-gateway
+
+---
+#########################################################
+# Catalog service
+#########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog
+spec:
+  selector:
+    matchLabels:
+      app: catalog
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: catalog
+    spec:
+      containers:
+      - name: catalog
+        image: kevinhb/moleculer-store:latest
+        envFrom:
+        - configMapRef:
+            name: common-env
+        env:
+          - name: SERVICES
+            value: catalog
+
+---
+#########################################################
+# Catalog service
+#########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders
+spec:
+  selector:
+    matchLabels:
+      app: orders
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: orders
+    spec:
+      containers:
+      - name: orders
+        image: kevinhb/moleculer-store:latest
+        envFrom:
+        - configMapRef:
+            name: common-env
+        env:
+          - name: SERVICES
+            value: orders
+  
+---
+
+#########################################################
+# Catalog service
+#########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: recommendations
+spec:
+  selector:
+    matchLabels:
+      app: recommendations
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: recommendations
+    spec:
+      containers:
+      - name: recommendations
+        image: kevinhb/moleculer-store:latest
+        envFrom:
+        - configMapRef:
+            name: common-env
+        env:
+          - name: SERVICES
+            value: recommendations
+  
+---
+#########################################################
+# MySQL server
+#########################################################
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mysql-pv
+  labels:
+    type: local
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/mnt/data"
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pv-claim
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+spec:
+  selector:
+    matchLabels:
+      app: mysql
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - image: mysql:8.0
+          name: mysql
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: XD6Qpi47kS8q2Td4
+          ports:
+            - containerPort: 3306
+              name: mysql
+          volumeMounts:
+            - name: mysql-persistent-storage
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: mysql-persistent-storage
+          persistentVolumeClaim:
+            claimName: mysql-pv-claim
+
+
+---
+#########################################################
+# AMQP (RabbitMQ) transporter service
+#########################################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+spec:
+  selector:
+    app: rabbitmq
+  ports:
+  - port: 5672
+    name: rabbitmq
+    targetPort: 5672
+  - port: 15672
+    name: management
+    targetPort: 15672
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+spec:
+  selector:
+    matchLabels:
+      app: rabbitmq
+  replicas: 1
+  strategy:
+    type: Recreate  
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+      - name: rabbitmq
+        image: rabbitmq:3-management-alpine
+        ports:
+        - containerPort: 5672
+          name: rabbitmq
+        - containerPort: 15672
+          name: management
+
+
+
